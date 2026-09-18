@@ -2,12 +2,15 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import AtelierDock from "@/components/AtelierDock";
 import CadViewer from "@/components/CadViewer";
 import InkCanvas from "@/components/InkCanvas";
 import StudioChat, { type ChatMessage } from "@/components/StudioChat";
 import ExportPicker, { type ExportChoice } from "@/components/ExportPicker";
+import TourOverlay from "@/components/TourOverlay";
+import { buildTourStops } from "@/lib/homeTour";
 import {
   bakeViewTo3d,
   defaultViews,
@@ -71,6 +74,10 @@ export default function StudioApp() {
   const [pending, setPending] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [touring, setTouring] = useState(false);
+  const [tourIndex, setTourIndex] = useState(0);
+  const [tourPlaying, setTourPlaying] = useState(true);
+  const searchParams = useSearchParams();
 
   const details = layout.details ?? [];
   const views = layout.views?.length ? layout.views : defaultViews();
@@ -78,6 +85,7 @@ export default function StudioApp() {
   const sketching = ["partition", "millwork", "glazing", "furniture", "stair"].includes(tool);
   const sketchKind = (sketching ? tool : "partition") as DetailKind;
   const drawing = tool === "ink" || tool === "label" || sketching;
+  const tourStops = useMemo(() => buildTourStops(layout), [layout]);
 
   const summary = useMemo(
     () =>
@@ -86,8 +94,29 @@ export default function StudioApp() {
   );
 
   useEffect(() => {
+    if (searchParams.get("tour") === "1") {
+      setTouring(true);
+      setTourIndex(0);
+      setTourPlaying(true);
+      setMorph(0);
+      setTool("orbit");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!touring || !tourPlaying || tourStops.length < 2) return;
+    const timer = window.setInterval(() => {
+      setTourIndex((cur) => (cur + 1) % tourStops.length);
+    }, 5200);
+    return () => window.clearInterval(timer);
+  }, [touring, tourPlaying, tourStops.length]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPreview(null);
+      if (event.key === "Escape") {
+        setPreview(null);
+        setTouring(false);
+      }
       if ((event.key === "z" || event.key === "Z") && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         setLayout((cur) => ({ ...cur, details: (cur.details ?? []).slice(0, -1) }));
@@ -225,12 +254,14 @@ export default function StudioApp() {
             <HeroScene
               layout={layout}
               morph={morph}
-              sketching={sketching}
+              sketching={sketching && !touring}
               sketchKind={sketchKind}
-              orbitEnabled={tool === "orbit"}
+              orbitEnabled={tool === "orbit" && !touring}
               details={details}
               preview={preview}
               activeView={activeView}
+              tourMode={touring}
+              tourStop={tourStops[tourIndex]}
               onCommitSketch={commitSketch}
               onPreview={setPreview}
             />
@@ -253,13 +284,26 @@ export default function StudioApp() {
               }
             />
             <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-onyx-950/55 to-transparent" />
-            <div className={`pointer-events-none absolute left-5 top-5 max-w-md ${drawing ? "opacity-40" : ""}`}>
-              <p className="font-sans text-xs text-cobalt">3D house</p>
-              <h1 className="font-display text-3xl text-white">Your model</h1>
-              <p className="mt-1 font-sans text-sm text-titanium">
-                Drag to look around. Drawing happens here, not on the home page.
-              </p>
-            </div>
+            {touring ? (
+              <TourOverlay
+                stops={tourStops}
+                index={tourIndex}
+                playing={tourPlaying}
+                onClose={() => setTouring(false)}
+                onPrev={() => setTourIndex((cur) => (cur - 1 + tourStops.length) % tourStops.length)}
+                onNext={() => setTourIndex((cur) => (cur + 1) % tourStops.length)}
+                onToggle={() => setTourPlaying((cur) => !cur)}
+              />
+            ) : (
+              <div className={`pointer-events-none absolute left-5 top-5 max-w-md ${drawing ? "opacity-40" : ""}`}>
+                <p className="font-sans text-xs text-cobalt">3D house</p>
+                <h1 className="font-display text-3xl text-white">Your model</h1>
+                <p className="mt-1 font-sans text-sm text-titanium">
+                  Drag to look around, or start a home tour to see the rooms after completion.
+                </p>
+              </div>
+            )}
+            {touring ? null : (
             <div className="absolute bottom-4 left-4 w-[min(100%-2rem,280px)]">
               <div className="glass rounded-2xl px-4 py-3">
                 <div className="mb-2 flex justify-between font-sans text-xs text-titanium">
@@ -277,12 +321,22 @@ export default function StudioApp() {
                 />
               </div>
             </div>
+            )}
           </div>
           <AtelierDock
             views={views}
             activeId={activeView.id}
             tool={tool}
             exporting={exporting}
+            touring={touring}
+            onTour={() => {
+              setTouring(true);
+              setTourIndex(0);
+              setTourPlaying(true);
+              setMorph(0);
+              setTool("orbit");
+              setStatus("Walking through the finished home.");
+            }}
             onSelect={(id) => {
               setActiveViewId(id);
               setMorph(0.1);

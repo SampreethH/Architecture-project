@@ -23,7 +23,9 @@ export default function AtelierDock({
   onBake,
   onExportSkp,
   onExportDwg,
+  onTour,
   exporting,
+  touring,
 }: {
   views: SavedView[];
   activeId: string;
@@ -35,7 +37,9 @@ export default function AtelierDock({
   onBake: () => void;
   onExportSkp: () => void;
   onExportDwg: () => void;
+  onTour?: () => void;
   exporting?: boolean;
+  touring?: boolean;
 }) {
   const active = views.find((v) => v.id === activeId) ?? views[0];
   const canBake = active?.approval === "approved";
@@ -117,6 +121,13 @@ export default function AtelierDock({
           className="rounded-full bg-champagne px-3 py-1.5 font-sans text-xs font-semibold text-onyx-950 disabled:opacity-40"
         >
           Make it 3D
+        </button>
+        <button
+          type="button"
+          onClick={() => onTour?.()}
+          className="rounded-full border border-cobalt/40 bg-cobalt/10 px-3 py-1.5 font-sans text-xs text-cobalt"
+        >
+          {touring ? "Touring…" : "Home tour"}
         </button>
         <button
           type="button"

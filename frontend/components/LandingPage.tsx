@@ -84,12 +84,12 @@ export default function LandingPage() {
             >
               Open the drawing page
             </Link>
-            <a
-              href="#how-it-works"
+            <Link
+              href="/studio?tour=1"
               className="rounded-full border border-white/15 px-6 py-3 font-sans text-sm text-titanium-bright"
             >
-              How it works
-            </a>
+              Tour a finished home
+            </Link>
           </div>
         </div>
       </div>
